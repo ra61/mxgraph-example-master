@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>mxGraph</title>
+    <script type="text/javascript">
+        mxBasePath = 'src/';
+    </script>
+    <script type="text/javascript" src="src/js/mxClient.js"></script>
+    <style>
+        .graphContainer {
+            width: 600px;
+            height: 400px;
+            border: #c3c3c3 1px solid;
+            overflow: auto;
+            background:url('./src/images/grid.gif');
+            margin:  10px 0;
+        }
+
+        .buttonGroup {
+            width: 900px;
+            height: 40px;
+            vertical-align: middle;
+            background-color: #eee;
+            position: relative;
+        }
+
+        .buttonGroup button {
+            display: inline-block;
+            margin: 10px 10px;
+            cursor: pointer;
+            border:0;
+            background-color:transparent;
+        }
+
+        .buttonGroup button:focus{
+            border: 0;
+        }
+
+        .popup{
+            width: 200px;
+            height: 300px;
+            border: #c3c3c3 solid 1px;
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            display: none;
+        }
+
+        .show{
+            display: block;
+        }
+    </style>
+    <!-- Example code -->
+    <script type="text/javascript">
+        // Program starts here. Creates a sample graph in the
+        // DOM node with the specified ID. This function is invoked
+        // from the onLoad event handler of the document (see below).
+        function main(container)
+        {
+            // Checks if the browser is supported
+            if (!mxClient.isBrowserSupported())
+            {
+                // Displays an error message if the browser is not supported.
+                mxUtils.error('Browser is not supported!', 200, false);
+            }
+            else
+            {
+                // Disables the built-in context menu
+                mxEvent.disableContextMenu(container);
+
+                // Creates the graph inside the given container
+                var graph = new mxGraph(container);
+
+                var style = graph.getStylesheet().getDefaultEdgeStyle();
+                style[mxConstants.STYLE_ROUNDED] = true;
+                style[mxConstants.STYLE_EDGE] = mxEdgeStyle.ElbowConnector;
+                graph.alternateEdgeStyle = 'elbow=vertical';
+
+                // Enables rubberband selection
+                graph.scrollTileSize = new mxRectangle(0, 0, 400, 400);
+                // new mxRubberband(graph);
+
+                // 挪动
+                graph.setPanning(true);
+                graph.panningHandler.useLeftButtonForPanning = true;
+
+                // Account for the header and footer size in the page format
+                var headerSize = 100;
+                var footerSize = - 100;
+
+                // 允许鼠标连接
+                graph.setConnectable(true);
+                // Gets the default parent for inserting new cells. This
+                // is normally the first child of the root (ie. layer 0).
+                var parent = graph.getDefaultParent();
+
+                // Adds cells to the model in a single step
+                graph.getModel().beginUpdate();
+
+                try
+                {
+                    // 画方块 默认情况下
+                    var v1 = graph.insertVertex(parent, null, '矩形', 50, 50, 150, 50);
+
+                    // 画方块 默认情况下
+                    var v2 = graph.insertVertex(parent, null, '矩形', 50, 150, 150, 50);
+
+                    var e1 = graph.insertEdge(parent, null, 'box1 connect to box2', v1, v2);
+
+                    var buttonGroup = document.getElementById('buttonGroup');
+
+                    var buttonGroup2 = document.getElementById('popup');
+
+                    /**
+                     * 新增节点
+                     */
+                    buttonGroup.appendChild(mxUtils.button('新增节点', function(evt)
+                    {
+                        graph.insertVertex(parent, null, '新增节点', 250, 150, 150, 50);
+                    }));
+
+                    /**
+                     * 删除节点
+                     */
+                    buttonGroup.appendChild(mxUtils.button('删除节点', function(evt)
+                    {
+                        if(mxUtils.confirm("确定删除吗？")){
+                            var cells = graph.getSelectionCells();
+                            graph.removeCells(cells);
+                            mxEvent.consume(evt);
+                        }
+                    }));
+
+                    /**
+                     * 复制节点
+                     */
+                    buttonGroup.appendChild(mxUtils.button('复制节点', function(evt)
+                    {
+                        var v3 = graph.getSelectionCell();
+                        var s = graph.gridSize;
+                        graph.setSelectionCells(graph.moveCells([v3], s, s, true));
+                        mxEvent.consume(evt);
+                    }));
+
+                    /**
+                     * 编辑节点
+                     */
+                    buttonGroup.appendChild(mxUtils.button('编辑节点', function(evt)
+                    {
+                        console.log('editNode');
+                        var v3 = graph.getSelectionCell();
+                        // 获取单元
+                        var cell = graph.getModel().getCell(v3.id);
+
+                        // 修改样式
+                        graph.setCellStyles(mxConstants.STYLE_FILLCOLOR, "#000000", [cell]);
+                        graph.setCellStyles(mxConstants.STYLE_FONTCOLOR, "#FFFFFF", [cell]);
+
+                        showPopup();
+
+                    }));
+
+                    graph.centerZoom = false;
+                    /**
+                     * 放大
+                     */
+                    buttonGroup.appendChild(mxUtils.button('放大', function(evt){
+                        graph.zoomIn();
+                    }));
+
+                    /**
+                     * 缩小
+                     */
+                    buttonGroup.appendChild(mxUtils.button('缩小', function(evt){
+                        graph.zoomOut();
+                    }));
+
+                    /**
+                     * Reset
+                     */
+                    buttonGroup.appendChild(mxUtils.button('Reset', function(evt){
+                            graph.view.scaleAndTranslate(1, 0, 0);
+                    }));
+
+                    /**
+                     * Print
+                     */
+
+                    buttonGroup.appendChild(mxUtils.button('Print',
+                        function(evt)
+                        {
+                            // Matches actual printer paper size and avoids blank pages
+                            var scale = 0.5;
+
+                            // Applies scale to page
+                            var pf = mxRectangle.fromRectangle(graph.pageFormat || mxConstants.PAGE_FORMAT_A4_PORTRAIT);
+                            pf.width = Math.round(pf.width * scale * graph.pageScale);
+                            pf.height = Math.round(pf.height * scale * graph.pageScale);
+
+                            // Finds top left corner of top left page
+                            var bounds = mxRectangle.fromRectangle(graph.getGraphBounds());
+                            bounds.x -= graph.view.translate.x * graph.view.scale;
+                            bounds.y -= graph.view.translate.y * graph.view.scale;
+
+                            var x0 = Math.floor(bounds.x / pf.width) * pf.width;
+                            var y0 = Math.floor(bounds.y / pf.height) * pf.height;
+
+                            var preview = new mxPrintPreview(graph, scale, pf, 0, -x0, -y0);
+                            preview.marginTop = headerSize * scale * graph.pageScale;
+                            preview.marginBottom = footerSize * scale * graph.pageScale;
+                            preview.autoOrigin = false;
+
+                            var oldRenderPage = preview.renderPage;
+                            preview.renderPage = function(w, h, x, y, content, pageNumber)
+                            {
+                                var div = oldRenderPage.apply(this, arguments);
+
+                                var header = document.createElement('div');
+                                header.style.position = 'absolute';
+                                header.style.boxSizing = 'border-box';
+                                header.style.fontFamily = 'Arial,Helvetica';
+                                header.style.height = (this.marginTop - 10) + 'px';
+                                header.style.textAlign = 'center';
+                                header.style.verticalAlign = 'middle';
+                                header.style.marginTop = 'auto';
+                                header.style.fontSize = '12px';
+                                header.style.width = '100%';
+
+                                // Vertical centering for text in header/footer
+                                header.style.lineHeight = (this.marginTop - 10) + 'px';
+
+                                var footer = header.cloneNode(true);
+
+                                mxUtils.write(header, 'Page ' + pageNumber + ' - Header');
+                                header.style.borderBottom = '1px solid gray';
+                                header.style.top = '0px';
+
+                                mxUtils.write(footer, 'Page ' + pageNumber + ' - Footer');
+                                footer.style.borderTop = '1px solid gray';
+                                footer.style.bottom = '0px';
+
+                                div.firstChild.appendChild(footer);
+                                div.firstChild.appendChild(header);
+
+                                return div;
+                            };
+
+                            preview.open();
+                        }
+                    ));
+
+                    /**
+                     * XML
+                     */
+                    buttonGroup.appendChild(mxUtils.button('XML', function()
+                    {
+                        var encoder = new mxCodec();
+                        var node = encoder.encode(graph.getModel());
+                        console.log(node);
+                        mxUtils.popup(mxUtils.getPrettyXml(node), true);
+                    }));
+
+                    /**
+                     * 保存
+                     */
+
+                    buttonGroup2.appendChild(mxUtils.button('保存', function()
+                    {
+                        var par_id = document.getElementById('par').value;
+                        var son_id = document.getElementById('son').value;
+                        // 获取单元
+                        var par_cell = graph.getModel().getCell(par_id);
+                        // 获取单元
+                        var son_cell = graph.getModel().getCell(son_id);
+
+                        graph.insertEdge(parent, null, '', par_cell, son_cell);
+                    }));
+
+                    /**
+                     * 将图形的xml进行回显
+                     */
+                    var xml= '<mxGraphModel>' +
+                        '                <root>' +
+                        '                <mxCell id="0"/>' +
+                        '                    <mxCell id="1" parent="0"/>' +
+                        '                    <mxCell id="2" value="矩形" vertex="1" parent="1">' +
+                        '                    <mxGeometry x="50" y="50" width="150" height="50" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    <mxCell id="3" value="矩形" vertex="1" parent="1">' +
+                        '                    <mxGeometry x="310" y="160" width="150" height="50" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    <mxCell id="4" value="box1 connect to box2" edge="1" parent="1" source="2" target="3">' +
+                        '                    <mxGeometry relative="1" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    <mxCell id="5" value="新增节点" style="fillColor=#000000;fontColor=#FFFFFF;" vertex="1" parent="1">' +
+                        '                    <mxGeometry x="120" y="250" width="150" height="50" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    <mxCell id="6" value="新增节点" vertex="1" parent="1">' +
+                        '                    <mxGeometry x="340" y="380" width="150" height="50" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    <mxCell id="7" value="" edge="1" parent="1" source="5" target="6">' +
+                        '                    <mxGeometry relative="1" as="geometry"/>' +
+                        '                    </mxCell>' +
+                        '                    </root>' +
+                        '                    </mxGraphModel>';
+                    var doc = mxUtils.parseXml(xml);
+                    var codec = new mxCodec(doc);
+                    codec.decode(doc.documentElement, graph.getModel());
+
+                    // Sets initial scrollbar positions
+                    window.setTimeout(function()
+                    {
+                        var bounds = graph.getGraphBounds();
+                        var width = Math.max(bounds.width, graph.scrollTileSize.width * graph.view.scale);
+                        var height = Math.max(bounds.height, graph.scrollTileSize.height * graph.view.scale);
+                        graph.container.scrollTop = Math.floor(Math.max(0, bounds.y - Math.max(20, (graph.container.clientHeight - height) / 4)));
+                        graph.container.scrollLeft = Math.floor(Math.max(0, bounds.x - Math.max(0, (graph.container.clientWidth - width) / 2)));
+                    }, 0);
+
+                }
+                finally
+                {
+                    // Updates the display
+                    graph.getModel().endUpdate();
+                }
+            }
+        }
+    </script>
+    <script>
+        function showPopup() {
+            console.log('showPopup');
+            document.getElementById('popup').className += ' show';
+        }
+    </script>
+</head>
+<body onload="main(document.getElementById('graphContainer'))" >
+    <div class="buttonGroup" id="buttonGroup"></div>
+    <div id="graphContainer" class="graphContainer"></div>
+    <div id="popup" class="popup">
+        <div>从: <input type="text" id="par"></div>
+        <div>跳到：<input type="text" id="son"> </div>
+    </div>
+</body>
+</html>
